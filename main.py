@@ -86,9 +86,14 @@ class FastFaceRecognizer:
     def __init__(self):
         self.faces = []
         self.face_database = InMemoryFaceDatabase()
-        self.frame_queue = queue.Queue(maxsize=1)  # Smaller queue for better performance
-        self.result_cache = {}  # Cache recent results
-        self.cache_timeout = 1.0  # Cache results for 1 second
+        self.frame_queue = queue.Queue(maxsize=1)
+        self.result_cache = {}
+        self.cache_timeout = 1.0
+        self.last_process_time = 0
+        self.process_interval = 0.1  # Process every 100ms instead of every frame
+        
+        # Initialize face detector once for reuse
+        self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
         
         # Single background thread for processing
         self.executor = ThreadPoolExecutor(max_workers=1)
@@ -97,18 +102,24 @@ class FastFaceRecognizer:
         self.processing_thread.start()
         
     def _background_processor(self):
-        """Optimized background processing"""
+        """Optimized background processing with frame skipping"""
         while self.running:
             try:
                 frame = self.frame_queue.get(timeout=0.1)
+                
+                # Skip processing if too soon since last process
+                current_time = time.time()
+                if current_time - self.last_process_time < self.process_interval:
+                    continue
                 
                 # Submit processing task
                 future = self.executor.submit(self._process_frame, frame)
                 
                 try:
-                    result = future.result(timeout=1.5)
-                    if result:
+                    result = future.result(timeout=1.0)  # Reduced timeout
+                    if result is not None:
                         self.faces = result
+                        self.last_process_time = current_time
                 except:
                     pass  # Keep previous results
                     
@@ -118,84 +129,138 @@ class FastFaceRecognizer:
                 continue
                 
     def _process_frame(self, frame):
-        """Fast frame processing with caching"""
+        """Optimized frame processing with better face detection"""
         try:
-            # Aggressive downscaling for speed
+            # More aggressive downscaling for initial detection
             height, width = frame.shape[:2]
-            scale_factor = 0.4  # Even smaller for speed
+            scale_factor = 0.3  # Smaller for faster processing
             small_frame = cv2.resize(frame, (int(width * scale_factor), int(height * scale_factor)))
             
-            # Fast face detection only
-            results = DeepFace.analyze(
-                small_frame,
-                actions=['age', 'gender', 'emotion'],
-                detector_backend='opencv',
-                enforce_detection=False,
-                silent=True
+            # Convert to grayscale for faster OpenCV detection
+            gray_small = cv2.cvtColor(small_frame, cv2.COLOR_BGR2GRAY)
+            
+            # Use OpenCV for fast face detection first
+            faces_cv = self.face_cascade.detectMultiScale(
+                gray_small,
+                scaleFactor=1.1,
+                minNeighbors=5,
+                minSize=(20, 20),  # Minimum face size
+                flags=cv2.CASCADE_SCALE_IMAGE
             )
             
-            if not isinstance(results, list):
-                results = [results] if results else []
+            if len(faces_cv) == 0:
+                return []
             
             processed_faces = []
             
-            for result in results:
-                if 'region' not in result:
-                    continue
-                    
+            # Process only the first few faces for performance
+            for i, (x, y, w, h) in enumerate(faces_cv[:3]):  # Limit to 3 faces max
                 try:
-                    # Scale coordinates back
-                    region = result['region'].copy()
-                    region['x'] = int(region['x'] / scale_factor)
-                    region['y'] = int(region['y'] / scale_factor)
-                    region['w'] = int(region['w'] / scale_factor)
-                    region['h'] = int(region['h'] / scale_factor)
-                    result['region'] = region
+                    # Scale coordinates back to original frame
+                    x_orig = int(x / scale_factor)
+                    y_orig = int(y / scale_factor)
+                    w_orig = int(w / scale_factor)
+                    h_orig = int(h / scale_factor)
+                    
+                    # Add padding for better face extraction
+                    padding = 10
+                    x_padded = max(0, x_orig - padding)
+                    y_padded = max(0, y_orig - padding)
+                    w_padded = min(width - x_padded, w_orig + 2*padding)
+                    h_padded = min(height - y_padded, h_orig + 2*padding)
                     
                     # Extract face region
-                    x, y, w, h = region['x'], region['y'], region['w'], region['h']
+                    face_img = frame[y_padded:y_padded+h_padded, x_padded:x_padded+w_padded]
                     
-                    # Skip very small faces for performance
-                    if w < 50 or h < 50:
+                    if face_img.size == 0:
                         continue
+                    
+                    # Get analysis from DeepFace (less frequent)
+                    try:
+                        # Resize face for faster analysis
+                        face_resized = cv2.resize(face_img, (160, 160))
                         
-                    face_img = frame[max(0,y):y+h, max(0,x):x+w]
-                    # Reject if face_img is nearly the size of the whole frame (likely a false detection)
-                    frame_h, frame_w = frame.shape[:2]
-                    face_h, face_w = face_img.shape[:2]
-                    if face_h > 0.9 * frame_h and face_w > 0.9 * frame_w:
-                        continue
-
-                    if face_img.size > 0:
-                        # Get embedding for recognition
+                        analysis = DeepFace.analyze(
+                            face_resized,
+                            actions=['age', 'gender', 'emotion'],
+                            detector_backend='skip',  # Skip detection since we already have the face
+                            enforce_detection=False,
+                            silent=True
+                        )
+                        
+                        if isinstance(analysis, list):
+                            analysis = analysis[0] if analysis else {}
+                        
+                    except Exception:
+                        # Use default values if analysis fails
+                        analysis = {
+                            'age': 'Unknown',
+                            'dominant_gender': 'Unknown', 
+                            'dominant_emotion': 'neutral'
+                        }
+                    
+                    # Get embedding for recognition (less frequent)
+                    embedding = None
+                    if i < 2:  # Only get embeddings for first 2 faces
                         embedding = self._get_fast_embedding(face_img)
-                        if embedding is not None:
-                            # Try to match
-                            match_id, distance = self.face_database.find_match(embedding)
-                            
-                            if match_id and distance is not None:
-                                # Known face
-                                person_data = self.face_database.known_faces[match_id]
-                                result.update({
-                                    'person_id': match_id,
-                                    'person_name': person_data['name'],
-                                    'confidence': f"{(1-distance)*100:.1f}%",
-                                    'stored_age': person_data['age'],
-                                    'stored_gender': person_data['gender']
-                                })
-                            else:
-                                # New face
-                                new_id = self.face_database.add_face(embedding, result)
+                    
+                    # Create result object
+                    result = {
+                        'region': {
+                            'x': x_orig,
+                            'y': y_orig, 
+                            'w': w_orig,
+                            'h': h_orig
+                        },
+                        'age': analysis.get('age', 'Unknown'),
+                        'dominant_gender': analysis.get('dominant_gender', 'Unknown'),
+                        'dominant_emotion': analysis.get('dominant_emotion', 'neutral')
+                    }
+                    
+                    if embedding is not None:
+                        # Try to match with known faces
+                        match_id, distance = self.face_database.find_match(embedding)
+                        
+                        if match_id and distance is not None:
+                            # Known face
+                            person_data = self.face_database.known_faces[match_id]
+                            result.update({
+                                'person_id': match_id,
+                                'person_name': person_data['name'],
+                                'confidence': f"{(1-distance)*100:.1f}%",
+                                'stored_age': person_data['age'],
+                                'stored_gender': person_data['gender']
+                            })
+                        else:
+                            # New face - but don't add every frame
+                            if time.time() % 3 < 0.5:  # Only add new faces occasionally
+                                new_id = self.face_database.add_face(embedding, analysis)
                                 result.update({
                                     'person_id': new_id,
                                     'person_name': new_id,
                                     'confidence': "New",
-                                    'stored_age': result.get('age', '?'),
-                                    'stored_gender': result.get('dominant_gender', '?')
+                                    'stored_age': analysis.get('age', '?'),
+                                    'stored_gender': analysis.get('dominant_gender', '?')
                                 })
-                            
-                            processed_faces.append(result)
-                            
+                            else:
+                                result.update({
+                                    'person_id': 'Unknown',
+                                    'person_name': 'Unknown',
+                                    'confidence': "Processing...",
+                                    'stored_age': '?',
+                                    'stored_gender': '?'
+                                })
+                    else:
+                        result.update({
+                            'person_id': 'Detected',
+                            'person_name': 'Face',
+                            'confidence': "Detected",
+                            'stored_age': '?',
+                            'stored_gender': '?'
+                        })
+                    
+                    processed_faces.append(result)
+                    
                 except Exception:
                     continue
                         
@@ -205,41 +270,16 @@ class FastFaceRecognizer:
             return []
     
     def _get_fast_embedding(self, face_img):
-        """Fast embedding extraction with minimal processing"""
+        """Optimized embedding extraction"""
         try:
-            # For loading from files, we might need to detect face first
-            if face_img.shape[0] > 200 or face_img.shape[1] > 200:
-                # This is likely a full image, try to detect face
-                try:
-                    results = DeepFace.analyze(
-                        face_img,
-                        actions=[],
-                        detector_backend='opencv',
-                        enforce_detection=False,
-                        silent=True
-                    )
-                    
-                    if isinstance(results, list) and results:
-                        result = results[0]
-                    elif results:
-                        result = results
-                    else:
-                        result = None
-                        
-                    if result and 'region' in result:
-                        region = result['region']
-                        x, y, w, h = region['x'], region['y'], region['w'], region['h']
-                        face_img = face_img[y:y+h, x:x+w]
-                except:
-                    pass  # Use the full image if face detection fails
-            
-            # Resize face for faster embedding
-            face_resized = cv2.resize(face_img, (112, 112))  # Standard face size
+            # Resize to standard size for consistency
+            face_resized = cv2.resize(face_img, (112, 112))
             
             embedding_result = DeepFace.represent(
                 face_resized,
-                model_name='Facenet',
-                enforce_detection=False
+                model_name='Facenet',  # Facenet is generally faster than ArcFace
+                enforce_detection=False,
+                detector_backend='skip'  # Skip detection since we already have the face
             )
             
             if embedding_result and isinstance(embedding_result, list) and len(embedding_result) > 0:
@@ -305,16 +345,18 @@ def draw_face_info(frame, face, face_index):
         # Color scheme based on recognition status
         if confidence == "New":
             color = (0, 255, 255)  # Yellow for new faces
+        elif confidence == "Processing...":
+            color = (255, 165, 0)  # Orange for processing
         else:
             color = (0, 255, 0)  # Green for recognized faces
         
         # Draw nice rounded rectangle (simulate with thick border)
-        border_thickness = 3
+        border_thickness = 2  # Thinner for better performance
         cv2.rectangle(frame, (x, y), (x + w, y + h), color, border_thickness)
         
-        # Draw corner markers for a modern look
-        corner_length = 20
-        corner_thickness = 4
+        # Simplified corner markers
+        corner_length = 15
+        corner_thickness = 3
         
         # Top-left corner
         cv2.line(frame, (x, y), (x + corner_length, y), color, corner_thickness)
@@ -324,28 +366,20 @@ def draw_face_info(frame, face, face_index):
         cv2.line(frame, (x + w, y), (x + w - corner_length, y), color, corner_thickness)
         cv2.line(frame, (x + w, y), (x + w, y + corner_length), color, corner_thickness)
         
-        # Bottom-left corner
-        cv2.line(frame, (x, y + h), (x + corner_length, y + h), color, corner_thickness)
-        cv2.line(frame, (x, y + h), (x, y + h - corner_length), color, corner_thickness)
-        
-        # Bottom-right corner
-        cv2.line(frame, (x + w, y + h), (x + w - corner_length, y + h), color, corner_thickness)
-        cv2.line(frame, (x + w, y + h), (x + w, y + h - corner_length), color, corner_thickness)
-        
         # Display person name and emotion
         name_text = f"{person_name}"
         emotion_text = f"{current_emotion.title()}"
         
         text_x = x
-        text_y = y - 40 if y > 50 else y + h + 25
+        text_y = y - 35 if y > 40 else y + h + 20
         
         # Draw name
         draw_text_with_background(frame, name_text, (text_x, text_y), 
-                                font_scale=0.8, color=color, bg_color=(0, 0, 0, 180))
+                                font_scale=0.7, color=color, bg_color=(0, 0, 0, 180))
         
         # Draw emotion below name
-        draw_text_with_background(frame, emotion_text, (text_x, text_y + 25), 
-                                font_scale=0.7, color=(255, 255, 255), bg_color=(0, 0, 0, 180))
+        draw_text_with_background(frame, emotion_text, (text_x, text_y + 20), 
+                                font_scale=0.6, color=(255, 255, 255), bg_color=(0, 0, 0, 180))
                            
     except Exception:
         pass
@@ -371,23 +405,24 @@ def main():
                 }
                 recognizer.face_database.add_face(embedding, face_info, custom_name=name)
 
-
-    # Initialize camera with performance settings
+    # Initialize camera with optimized settings
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("Error: Could not open camera")
         return
     
-    # Performance optimized settings
+    # Optimized camera settings
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
     cap.set(cv2.CAP_PROP_FPS, 30)
     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)  # Reduce auto-exposure lag
     
     # Performance tracking
     fps_counter = 0
     fps_start = time.time()
     fps = 0
+    frame_skip = 0
     
     print("\n😊 Face Recognition with Emotion Detection")
     print("⚡ Optimized for real-time performance")
@@ -399,25 +434,25 @@ def main():
             if not ret:
                 break
             
-            # Add frame for processing
-            recognizer.add_frame(frame)
+            # Skip every other frame for better performance
+            frame_skip += 1
+            if frame_skip % 2 == 0:
+                recognizer.add_frame(frame)
             
             # Draw faces
             for i, face in enumerate(recognizer.faces):
                 draw_face_info(frame, face, i)
             
-            # Update FPS
+            # Update FPS less frequently
             fps_counter += 1
-            if fps_counter % 15 == 0:
-                fps = 15 / (time.time() - fps_start)
+            if fps_counter % 30 == 0:  # Update every 30 frames
+                fps = 30 / (time.time() - fps_start)
                 fps_start = time.time()
             
             # Display stats
             stats = recognizer.face_database.get_stats()
-            draw_text_with_background(frame, f"Known Faces: {stats['total_faces']}", (10, 30), 
-                                    font_scale=0.6, color=(255, 255, 255), bg_color=(0, 0, 0))
-            draw_text_with_background(frame, f"Detected: {len(recognizer.faces)}", (10, 60), 
-                                    font_scale=0.6, color=(255, 255, 255), bg_color=(0, 0, 0))
+            draw_text_with_background(frame, f"Known: {stats['total_faces']} | Detected: {len(recognizer.faces)} | FPS: {fps:.1f}", 
+                                    (10, 30), font_scale=0.6, color=(255, 255, 255), bg_color=(0, 0, 0))
             
             cv2.imshow('Face Recognition - Emotion Detection', frame)
             
