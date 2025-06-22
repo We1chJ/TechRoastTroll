@@ -561,7 +561,7 @@ def draw_face_info(frame, face, face_index):
         pass
 
 class TwitchStreamer:
-    def __init__(self, width=640, height=480, fps=30, stream_key="your_stream_key_here"):
+    def __init__(self, width=480, height=640, fps=30, stream_key="your_stream_key_here"):
         self.running = True
         self.width = width
         self.height = height
@@ -659,8 +659,8 @@ def main():
         return
 
     # Optimized camera settings
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 480)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 640)
     cap.set(cv2.CAP_PROP_FPS, 30)
     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
     cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)
@@ -698,7 +698,7 @@ def main():
             draw_text_with_background(frame, f"Known: {stats['total_faces']} | Detected: {len(recognizer.faces)} | FPS: {fps:.1f}",
                                       (10, 30), font_scale=0.6, color=(255, 255, 255), bg_color=(0, 0, 0))
 
-            # twitch_streamer.send_frame(frame.copy())
+            twitch_streamer.send_frame(frame.copy())
             cv2.imshow('Face Recognition - Sticky Green Boxes', frame)
 
             # Handle keys
