@@ -6,25 +6,34 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 import queue
 from datetime import datetime
+import os
+import json
 
 class InMemoryFaceDatabase:
     def __init__(self):
         self.known_faces = {}  # {person_id: {'encoding': embedding, 'name': name, 'info': {...}}}
         self.next_person_id = 1
         
-    def add_face(self, embedding, face_info):
+    def add_face(self, embedding, face_info, custom_name=None):
         """Add new face to in-memory database"""
-        person_id = f"Person_{self.next_person_id}"
+        if custom_name:
+            person_id = custom_name
+        else:
+            person_id = f"Person_{self.next_person_id}"
+            
         self.known_faces[person_id] = {
             'encoding': embedding,
             'name': person_id,
             'age': face_info.get('age', 'Unknown'),
             'gender': face_info.get('dominant_gender', 'Unknown')
         }
-        self.next_person_id += 1
+        
+        if not custom_name:
+            self.next_person_id += 1
+            
         return person_id
         
-    def find_match(self, embedding, threshold=1.2):
+    def find_match(self, embedding, threshold=0.6):
         """Find matching face in memory database"""
         if not self.known_faces or embedding is None:
             return None, None
@@ -151,7 +160,12 @@ class FastFaceRecognizer:
                         continue
                         
                     face_img = frame[max(0,y):y+h, max(0,x):x+w]
-                    
+                    # Reject if face_img is nearly the size of the whole frame (likely a false detection)
+                    frame_h, frame_w = frame.shape[:2]
+                    face_h, face_w = face_img.shape[:2]
+                    if face_h > 0.9 * frame_h and face_w > 0.9 * frame_w:
+                        continue
+
                     if face_img.size > 0:
                         # Get embedding for recognition
                         embedding = self._get_fast_embedding(face_img)
@@ -193,6 +207,32 @@ class FastFaceRecognizer:
     def _get_fast_embedding(self, face_img):
         """Fast embedding extraction with minimal processing"""
         try:
+            # For loading from files, we might need to detect face first
+            if face_img.shape[0] > 200 or face_img.shape[1] > 200:
+                # This is likely a full image, try to detect face
+                try:
+                    results = DeepFace.analyze(
+                        face_img,
+                        actions=[],
+                        detector_backend='opencv',
+                        enforce_detection=False,
+                        silent=True
+                    )
+                    
+                    if isinstance(results, list) and results:
+                        result = results[0]
+                    elif results:
+                        result = results
+                    else:
+                        result = None
+                        
+                    if result and 'region' in result:
+                        region = result['region']
+                        x, y, w, h = region['x'], region['y'], region['w'], region['h']
+                        face_img = face_img[y:y+h, x:x+w]
+                except:
+                    pass  # Use the full image if face detection fails
+            
             # Resize face for faster embedding
             face_resized = cv2.resize(face_img, (112, 112))  # Standard face size
             
@@ -249,7 +289,7 @@ def draw_text_with_background(frame, text, position, font_scale=0.7, color=(255,
     cv2.putText(frame, text, (x, y), font, font_scale, color, thickness)
 
 def draw_face_info(frame, face, face_index):
-    """Simplified drawing function showing only emotion"""
+    """Enhanced drawing function showing person name and emotion"""
     try:
         region = face.get('region', {})
         x, y, w, h = region.get('x', 0), region.get('y', 0), region.get('w', 0), region.get('h', 0)
@@ -257,7 +297,8 @@ def draw_face_info(frame, face, face_index):
         if w <= 0 or h <= 0:
             return
             
-        # Get emotion info
+        # Get info
+        person_name = face.get('person_name', 'Unknown')
         current_emotion = face.get('dominant_emotion', 'Unknown')
         confidence = face.get('confidence', 'N/A')
         
@@ -291,18 +332,46 @@ def draw_face_info(frame, face, face_index):
         cv2.line(frame, (x + w, y + h), (x + w - corner_length, y + h), color, corner_thickness)
         cv2.line(frame, (x + w, y + h), (x + w, y + h - corner_length), color, corner_thickness)
         
-        # Display only emotion with nice background
+        # Display person name and emotion
+        name_text = f"{person_name}"
         emotion_text = f"{current_emotion.title()}"
-        text_x = x
-        text_y = y - 15 if y > 30 else y + h + 25
         
-        draw_text_with_background(frame, emotion_text, (text_x, text_y), 
+        text_x = x
+        text_y = y - 40 if y > 50 else y + h + 25
+        
+        # Draw name
+        draw_text_with_background(frame, name_text, (text_x, text_y), 
                                 font_scale=0.8, color=color, bg_color=(0, 0, 0, 180))
+        
+        # Draw emotion below name
+        draw_text_with_background(frame, emotion_text, (text_x, text_y + 25), 
+                                font_scale=0.7, color=(255, 255, 255), bg_color=(0, 0, 0, 180))
                            
     except Exception:
         pass
 
 def main():
+    print("=" * 50)
+    # Initialize recognizer
+    recognizer = FastFaceRecognizer()
+
+    # Load embeddings from face_embeddings.json
+    embedding_file = "face_embeddings.json"
+    if os.path.exists(embedding_file):
+        with open(embedding_file, "r") as f:
+            data = json.load(f)
+        for name in ["Jesse", "Nikita", "Austin"]:
+            person = data.get(name)
+            if person and "embedding" in person:
+                embedding = person["embedding"]
+                # Provide dummy info for age/gender if not present
+                face_info = {
+                    "age": person.get("age", "Unknown"),
+                    "dominant_gender": person.get("gender", "Unknown")
+                }
+                recognizer.face_database.add_face(embedding, face_info, custom_name=name)
+
+
     # Initialize camera with performance settings
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
@@ -315,15 +384,12 @@ def main():
     cap.set(cv2.CAP_PROP_FPS, 30)
     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
     
-    recognizer = FastFaceRecognizer()
-    
     # Performance tracking
     fps_counter = 0
     fps_start = time.time()
     fps = 0
     
-    print("🚀 Simplified Face Recognition")
-    print("😊 Emotion detection with clean interface")
+    print("\n😊 Face Recognition with Emotion Detection")
     print("⚡ Optimized for real-time performance")
     print("Press 'q' to quit, 'c' to clear memory")
     
@@ -346,16 +412,14 @@ def main():
                 fps = 15 / (time.time() - fps_start)
                 fps_start = time.time()
             
-            # Display stats with background
-            # stats = recognizer.face_database.get_stats()
-            # draw_text_with_background(frame, f"FPS: {fps:.1f}", (10, 30), 
-            #                         font_scale=0.6, color=(255, 255, 255), bg_color=(0, 0, 0))
-            # draw_text_with_background(frame, f"Known Faces: {stats['total_faces']}", (10, 60), 
-            #                         font_scale=0.6, color=(255, 255, 255), bg_color=(0, 0, 0))
-            # draw_text_with_background(frame, f"Detected: {len(recognizer.faces)}", (10, 90), 
-            #                         font_scale=0.6, color=(255, 255, 255), bg_color=(0, 0, 0))
+            # Display stats
+            stats = recognizer.face_database.get_stats()
+            draw_text_with_background(frame, f"Known Faces: {stats['total_faces']}", (10, 30), 
+                                    font_scale=0.6, color=(255, 255, 255), bg_color=(0, 0, 0))
+            draw_text_with_background(frame, f"Detected: {len(recognizer.faces)}", (10, 60), 
+                                    font_scale=0.6, color=(255, 255, 255), bg_color=(0, 0, 0))
             
-            cv2.imshow('Emotion Detection - Face Recognition', frame)
+            cv2.imshow('Face Recognition - Emotion Detection', frame)
             
             # Handle keys
             key = cv2.waitKey(1) & 0xFF
