@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,12 +13,12 @@
             color: white;
             font-family: Arial, sans-serif;
         }
-        
+
         .container {
             max-width: 400px;
             margin: 0 auto;
         }
-        
+
         .tiktok-video {
             width: 100%;
             height: 600px;
@@ -27,72 +28,73 @@
             margin-bottom: 20px;
             position: relative;
         }
-        
+
         .tiktok-video video {
             width: 100%;
             height: 100%;
             object-fit: cover;
         }
-        
+
         .video-overlay {
             position: absolute;
             bottom: 20px;
             left: 20px;
             right: 20px;
             color: white;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
         }
-        
+
         .video-title {
             font-size: 16px;
             margin-bottom: 10px;
         }
-        
+
         .video-description {
             font-size: 14px;
             opacity: 0.8;
         }
-        
+
         .youtube-container {
             width: 100%;
             margin-top: 30px;
         }
-        
+
         .youtube-title {
             font-size: 18px;
             margin-bottom: 15px;
             text-align: center;
         }
-        
+
         .youtube-video {
             width: 100%;
             height: 250px;
             border-radius: 10px;
             overflow: hidden;
         }
-        
+
         .youtube-video iframe {
             width: 100%;
             height: 100%;
             border: none;
         }
-        
+
         @media (max-width: 480px) {
             .container {
                 max-width: 100%;
                 padding: 0 10px;
             }
-            
+
             .tiktok-video {
                 height: 500px;
             }
-            
+
             .youtube-video {
                 height: 200px;
             }
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <!-- TikTok Style Short Video -->
@@ -106,21 +108,27 @@
                 <div class="video-description">#shorts #viral #trending</div>
             </div>
         </div>
-        
+
         <!-- YouTube Livestream -->
         <div class="youtube-container">
             <div class="youtube-title">🔴 Live Stream</div>
             <div class="youtube-video">
                 <!-- Replace VIDEO_ID with actual YouTube video/livestream ID -->
-                <iframe 
-                    src="https://www.youtube.com/embed/VIDEO_ID?autoplay=1&mute=1" 
-                    title="YouTube Live Stream" 
-                    frameborder="0" 
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                <iframe src="https://www.youtube.com/embed/VIDEO_ID?autoplay=1&mute=1" title="YouTube Live Stream"
+                    frameborder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                     allowfullscreen>
                 </iframe>
             </div>
         </div>
+
+
+        <!-- Twitch embed -->
+        <iframe src="https://player.twitch.tv/?channel=welch_jw&parent=We1chJ.github.io" height="480" width="720"
+            allowfullscreen>
+        </iframe>
+
     </div>
 </body>
+
 </html>
