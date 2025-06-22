@@ -26,7 +26,7 @@ class InMemoryFaceDatabase:
         self.next_person_id += 1
         return person_id
         
-    def find_match(self, embedding, threshold=0.6):
+    def find_match(self, embedding, threshold=1.2):
         """Find matching face in memory database"""
         if not self.known_faces or embedding is None:
             return None, None
@@ -161,6 +161,7 @@ class FastFaceRecognizer:
                         embedding = self._get_fast_embedding(face_img)
                         if embedding is not None:
                             # Try to match
+                            # print(embedding)
                             match_id, distance = self.face_database.find_match(embedding)
                             
                             if match_id and distance is not None:
