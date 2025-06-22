@@ -8,6 +8,7 @@ import queue
 from datetime import datetime
 import os
 import json
+import subprocess
 
 class InMemoryFaceDatabase:
     def __init__(self):
@@ -384,10 +385,78 @@ def draw_face_info(frame, face, face_index):
     except Exception:
         pass
 
+class TwitchStreamer:
+    def __init__(self, width=640, height=480, fps=30, stream_key="your_stream_key_here"):
+        self.running = True
+        self.width = width
+        self.height = height
+        self.fps = fps
+        self.stream_key = stream_key
+        self.rtmp_url = f"rtmp://live.twitch.tv/app/{stream_key}"
+
+        # FFmpeg command to stream
+        self.ffmpeg_cmd = [
+            'ffmpeg',
+            '-y',
+            '-f', 'rawvideo',
+            '-vcodec', 'rawvideo',
+            '-pix_fmt', 'bgr24',
+            '-s', f'{self.width}x{self.height}',
+            '-r', str(self.fps),
+            '-i', '-',  # Input from stdin
+            '-c:v', 'libx264',
+            '-pix_fmt', 'yuv420p',
+            '-preset', 'veryfast',
+            '-f', 'flv',
+            self.rtmp_url
+        ]
+
+        # Start FFmpeg process
+        self.process = subprocess.Popen(self.ffmpeg_cmd, stdin=subprocess.PIPE)
+
+        # Queue for thread-safe streaming
+        self.frame_queue = queue.Queue(maxsize=2)
+        self.thread = threading.Thread(target=self._stream_loop, daemon=True)
+        self.thread.start()
+
+    def _stream_loop(self):
+        while self.running:
+            try:
+                frame = self.frame_queue.get(timeout=0.5)
+                if frame is not None:
+                    self.process.stdin.write(frame.tobytes())
+            except queue.Empty:
+                continue
+            except Exception:
+                break
+
+    def send_frame(self, frame):
+        if self.frame_queue.full():
+            try:
+                self.frame_queue.get_nowait()
+            except queue.Empty:
+                pass
+        self.frame_queue.put_nowait(frame)
+
+    def stop(self):
+        self.running = False
+        try:
+            if self.thread.is_alive():
+                self.thread.join(timeout=1.0)
+        except:
+            pass
+        if self.process.stdin:
+            self.process.stdin.close()
+        self.process.wait()
+
+
 def main():
     print("=" * 50)
     # Initialize recognizer
     recognizer = FastFaceRecognizer()
+
+    # Initialize Twitch streamer
+    twitch_streamer = TwitchStreamer(stream_key="live_1249689599_Kmi5FRgzNObJ35wA4i2W5zaDnIFsqv")
 
     # Load embeddings from face_embeddings.json
     embedding_file = "face_embeddings.json"
@@ -454,6 +523,7 @@ def main():
             draw_text_with_background(frame, f"Known: {stats['total_faces']} | Detected: {len(recognizer.faces)} | FPS: {fps:.1f}", 
                                     (10, 30), font_scale=0.6, color=(255, 255, 255), bg_color=(0, 0, 0))
             
+            twitch_streamer.send_frame(frame.copy())
             cv2.imshow('Face Recognition - Emotion Detection', frame)
             
             # Handle keys
@@ -469,6 +539,7 @@ def main():
         print("\n👋 Session ended")
     finally:
         recognizer.stop()
+        twitch_streamer.stop()
         cap.release()
         cv2.destroyAllWindows()
         print("🔥 All data cleared from memory")
