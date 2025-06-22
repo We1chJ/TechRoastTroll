@@ -18,10 +18,8 @@ class InMemoryFaceDatabase:
         self.known_faces[person_id] = {
             'encoding': embedding,
             'name': person_id,
-            'first_seen': datetime.now().strftime("%H:%M:%S"),
             'age': face_info.get('age', 'Unknown'),
-            'gender': face_info.get('dominant_gender', 'Unknown'),
-            'appearances': 1
+            'gender': face_info.get('dominant_gender', 'Unknown')
         }
         self.next_person_id += 1
         return person_id
@@ -65,7 +63,6 @@ class InMemoryFaceDatabase:
                 continue
                 
         if best_match:
-            self.known_faces[best_match]['appearances'] += 1
             return best_match, best_distance
             
         return None, None
@@ -73,8 +70,7 @@ class InMemoryFaceDatabase:
     def get_stats(self):
         """Get database statistics"""
         return {
-            'total_faces': len(self.known_faces),
-            'total_appearances': sum(face['appearances'] for face in self.known_faces.values())
+            'total_faces': len(self.known_faces)
         }
 
 class FastFaceRecognizer:
@@ -161,7 +157,6 @@ class FastFaceRecognizer:
                         embedding = self._get_fast_embedding(face_img)
                         if embedding is not None:
                             # Try to match
-                            # print(embedding)
                             match_id, distance = self.face_database.find_match(embedding)
                             
                             if match_id and distance is not None:
@@ -171,8 +166,6 @@ class FastFaceRecognizer:
                                     'person_id': match_id,
                                     'person_name': person_data['name'],
                                     'confidence': f"{(1-distance)*100:.1f}%",
-                                    'appearances': person_data['appearances'],
-                                    'first_seen': person_data['first_seen'],
                                     'stored_age': person_data['age'],
                                     'stored_gender': person_data['gender']
                                 })
@@ -183,8 +176,6 @@ class FastFaceRecognizer:
                                     'person_id': new_id,
                                     'person_name': new_id,
                                     'confidence': "New",
-                                    'appearances': 1,
-                                    'first_seen': "Now",
                                     'stored_age': result.get('age', '?'),
                                     'stored_gender': result.get('dominant_gender', '?')
                                 })
@@ -240,8 +231,25 @@ class FastFaceRecognizer:
             self.processing_thread.join(timeout=1.0)
         self.executor.shutdown(wait=False)
 
+def draw_text_with_background(frame, text, position, font_scale=0.7, color=(255, 255, 255), bg_color=(0, 0, 0), thickness=2):
+    """Draw text with background for better visibility"""
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    
+    # Get text size
+    (text_width, text_height), baseline = cv2.getTextSize(text, font, font_scale, thickness)
+    
+    x, y = position
+    # Draw background rectangle
+    cv2.rectangle(frame, 
+                  (x - 5, y - text_height - 5), 
+                  (x + text_width + 5, y + baseline + 5), 
+                  bg_color, -1)
+    
+    # Draw text
+    cv2.putText(frame, text, (x, y), font, font_scale, color, thickness)
+
 def draw_face_info(frame, face, face_index):
-    """Optimized drawing function"""
+    """Simplified drawing function showing only emotion"""
     try:
         region = face.get('region', {})
         x, y, w, h = region.get('x', 0), region.get('y', 0), region.get('w', 0), region.get('h', 0)
@@ -249,38 +257,47 @@ def draw_face_info(frame, face, face_index):
         if w <= 0 or h <= 0:
             return
             
-        # Get info
-        person_name = face.get('person_name', 'Unknown')
+        # Get emotion info
+        current_emotion = face.get('dominant_emotion', 'Unknown')
         confidence = face.get('confidence', 'N/A')
-        appearances = face.get('appearances', 0)
-        stored_age = face.get('stored_age', '?')
-        stored_gender = face.get('stored_gender', '?')
-        current_emotion = face.get('dominant_emotion', '?')
         
-        # Simple color scheme
+        # Color scheme based on recognition status
         if confidence == "New":
-            color = (0, 255, 255)  # Yellow for new
+            color = (0, 255, 255)  # Yellow for new faces
         else:
-            colors = [(0, 255, 0), (255, 0, 0), (0, 0, 255), (255, 0, 255)]
-            color = colors[abs(hash(person_name)) % len(colors)]
+            color = (0, 255, 0)  # Green for recognized faces
         
-        # Draw bounding box
-        cv2.rectangle(frame, (x, y), (x + w, y + h), color, 2)
+        # Draw nice rounded rectangle (simulate with thick border)
+        border_thickness = 3
+        cv2.rectangle(frame, (x, y), (x + w, y + h), color, border_thickness)
         
-        # Minimal text info for performance
-        labels = [
-            f"{person_name}",
-            f"{confidence} ({appearances}x)",
-            f"{stored_age}y {stored_gender}",
-            f"{current_emotion}"
-        ]
+        # Draw corner markers for a modern look
+        corner_length = 20
+        corner_thickness = 4
         
-        # Compact text display
-        for i, label in enumerate(labels):
-            text_y = y - 30 + (i * 15)
-            if text_y > 10:  # Keep text on screen
-                cv2.putText(frame, label, (x, text_y), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+        # Top-left corner
+        cv2.line(frame, (x, y), (x + corner_length, y), color, corner_thickness)
+        cv2.line(frame, (x, y), (x, y + corner_length), color, corner_thickness)
+        
+        # Top-right corner
+        cv2.line(frame, (x + w, y), (x + w - corner_length, y), color, corner_thickness)
+        cv2.line(frame, (x + w, y), (x + w, y + corner_length), color, corner_thickness)
+        
+        # Bottom-left corner
+        cv2.line(frame, (x, y + h), (x + corner_length, y + h), color, corner_thickness)
+        cv2.line(frame, (x, y + h), (x, y + h - corner_length), color, corner_thickness)
+        
+        # Bottom-right corner
+        cv2.line(frame, (x + w, y + h), (x + w - corner_length, y + h), color, corner_thickness)
+        cv2.line(frame, (x + w, y + h), (x + w, y + h - corner_length), color, corner_thickness)
+        
+        # Display only emotion with nice background
+        emotion_text = f"{current_emotion.title()}"
+        text_x = x
+        text_y = y - 15 if y > 30 else y + h + 25
+        
+        draw_text_with_background(frame, emotion_text, (text_x, text_y), 
+                                font_scale=0.8, color=color, bg_color=(0, 0, 0, 180))
                            
     except Exception:
         pass
@@ -305,9 +322,8 @@ def main():
     fps_start = time.time()
     fps = 0
     
-    print("🚀 Fast In-Memory Face Recognition")
-    print("📝 All data stored in RAM for maximum speed")
-    print("🎯 Persistent IDs during session")
+    print("🚀 Simplified Face Recognition")
+    print("😊 Emotion detection with clean interface")
     print("⚡ Optimized for real-time performance")
     print("Press 'q' to quit, 'c' to clear memory")
     
@@ -330,16 +346,16 @@ def main():
                 fps = 15 / (time.time() - fps_start)
                 fps_start = time.time()
             
-            # Display stats
-            stats = recognizer.face_database.get_stats()
-            cv2.putText(frame, f"FPS: {fps:.1f}", (10, 25), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-            cv2.putText(frame, f"Known: {stats['total_faces']}", (10, 50), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-            cv2.putText(frame, f"Live: {len(recognizer.faces)}", (10, 75), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+            # Display stats with background
+            # stats = recognizer.face_database.get_stats()
+            # draw_text_with_background(frame, f"FPS: {fps:.1f}", (10, 30), 
+            #                         font_scale=0.6, color=(255, 255, 255), bg_color=(0, 0, 0))
+            # draw_text_with_background(frame, f"Known Faces: {stats['total_faces']}", (10, 60), 
+            #                         font_scale=0.6, color=(255, 255, 255), bg_color=(0, 0, 0))
+            # draw_text_with_background(frame, f"Detected: {len(recognizer.faces)}", (10, 90), 
+            #                         font_scale=0.6, color=(255, 255, 255), bg_color=(0, 0, 0))
             
-            cv2.imshow('Fast Face Recognition (In-Memory)', frame)
+            cv2.imshow('Emotion Detection - Face Recognition', frame)
             
             # Handle keys
             key = cv2.waitKey(1) & 0xFF
