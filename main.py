@@ -653,7 +653,7 @@ def main():
                 recognizer.face_database.add_face(embedding, face_info, custom_name=name)
 
     # Initialize camera with optimized settings
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(1)
     if not cap.isOpened():
         print("Error: Could not open camera")
         return
