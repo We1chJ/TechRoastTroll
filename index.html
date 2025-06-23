@@ -1,120 +1,258 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TikTok Style Video with YouTube Livestream</title>
+    <title>Tech Roast Troll</title>
     <style>
-        body {
+        @font-face {
+            font-family: 'DonkeyKong';
+            src: url('font/donkey-kong-classics-nes-extended.otf.woff2') format('woff2'),
+                 url('donkey-kong-classics-nes-extended.otf.woff2') format('woff2'),
+                 url('./donkey-kong-classics-nes-extended.otf.woff2') format('woff2');
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+        }
+    </style>
+    <style>
+        * {
             margin: 0;
-            padding: 20px;
-            background-color: #000;
-            color: white;
-            font-family: Arial, sans-serif;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'DonkeyKong', 'Press Start 2P', monospace;
+            background: linear-gradient(135deg, #2c1810, #4a3729, #1a0f08);
+            background-size: 400% 400%;
+            animation: gradientShift 8s ease infinite;
+            min-height: 100vh;
+            color: #ffcc00;
+            overflow-x: hidden;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
         }
 
         .container {
-            max-width: 400px;
-            margin: 0 auto;
+            max-width: 100%;
+            margin: 0;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            min-height: 100vh;
         }
 
-        .tiktok-video {
-            width: 100%;
-            height: 600px;
-            background-color: #111;
-            border-radius: 10px;
-            overflow: hidden;
-            margin-bottom: 20px;
-            position: relative;
-        }
-
-        .tiktok-video video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .video-overlay {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            right: 20px;
-            color: white;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
-        }
-
-        .video-title {
-            font-size: 16px;
-            margin-bottom: 10px;
-        }
-
-        .video-description {
-            font-size: 14px;
-            opacity: 0.8;
-        }
-
-        .youtube-container {
-            width: 100%;
-            margin-top: 30px;
-        }
-
-        .youtube-title {
-            font-size: 18px;
-            margin-bottom: 15px;
+        h1 {
+            font-size: clamp(2rem, 5vw, 4rem);
             text-align: center;
+            text-shadow: 
+                3px 3px 0px #8B4513,
+                6px 6px 0px rgba(0,0,0,0.3),
+                0 0 20px rgba(255, 204, 0, 0.5);
+            margin-bottom: 10px;
+            letter-spacing: 2px;
+            animation: glow 2s ease-in-out infinite alternate;
+            font-family: 'DonkeyKong', 'Courier New', monospace !important;
         }
 
-        .youtube-video {
+        @keyframes glow {
+            from { text-shadow: 3px 3px 0px #8B4513, 6px 6px 0px rgba(0,0,0,0.3), 0 0 20px rgba(255, 204, 0, 0.5); }
+            to { text-shadow: 3px 3px 0px #8B4513, 6px 6px 0px rgba(0,0,0,0.3), 0 0 30px rgba(255, 204, 0, 0.8); }
+        }
+
+        .streams-container {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
             width: 100%;
-            height: 250px;
+            flex: 1;
+        }
+
+        .stream-wrapper {
+            position: relative;
+            border: 4px solid #8B4513;
+            border-radius: 15px;
+            box-shadow: 
+                0 0 20px rgba(255, 204, 0, 0.3),
+                inset 0 0 20px rgba(139, 69, 19, 0.2);
+            background: #1a0f08;
+            padding: 10px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .stream-wrapper:hover {
+            transform: scale(1.02);
+            box-shadow: 
+                0 0 30px rgba(255, 204, 0, 0.5),
+                inset 0 0 20px rgba(139, 69, 19, 0.3);
+        }
+
+        .stream-wrapper.mirrored:hover {
+            transform: scale(1.02);
+        }
+
+        iframe {
             border-radius: 10px;
-            overflow: hidden;
+            width: 100%;
+            height: auto;
+            aspect-ratio: 16/9;
+            max-width: none;
+            min-width: 45vw;
+            min-height: 25vw;
         }
 
-        .youtube-video iframe {
-            width: 100%;
-            height: 100%;
-            border: none;
+        .stream-label {
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #8B4513;
+            color: #ffcc00;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: clamp(0.8rem, 1.5vw, 1.2rem);
+            border: 2px solid #ffcc00;
+            white-space: nowrap;
+            font-family: 'DonkeyKong', 'Courier New', monospace !important;
+        }
+
+        .divider {
+            width: 4px;
+            height: 60vh;
+            background: linear-gradient(to bottom, 
+                transparent, 
+                #8B4513 20%, 
+                #ffcc00 50%, 
+                #8B4513 80%, 
+                transparent);
+            border-radius: 2px;
+            box-shadow: 0 0 10px rgba(255, 204, 0, 0.5);
+            animation: pulse 3s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.7; transform: scaleY(1); }
+            50% { opacity: 1; transform: scaleY(1.1); }
+        }
+
+        /* Responsive breakpoints */
+        @media (max-width: 1200px) {
+            .streams-container {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .divider {
+                width: 80%;
+                height: 4px;
+                background: linear-gradient(to right, 
+                    transparent, 
+                    #8B4513 20%, 
+                    #ffcc00 50%, 
+                    #8B4513 80%, 
+                    transparent);
+            }
+            
+            iframe {
+                min-width: 80vw;
+                min-height: 45vw;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 8px;
+                gap: 10px;
+            }
+            
+            h1 {
+                margin-bottom: 10px;
+            }
+            
+            .stream-wrapper {
+                padding: 6px;
+                border-width: 3px;
+            }
+            
+            iframe {
+                min-width: 85vw;
+                min-height: 48vw;
+            }
+            
+            .stream-label {
+                font-size: clamp(0.6rem, 2vw, 1rem);
+                padding: 4px 12px;
+            }
         }
 
         @media (max-width: 480px) {
             .container {
-                max-width: 100%;
-                padding: 0 10px;
+                padding: 5px;
             }
+            
+            iframe {
+                min-width: 90vw;
+                min-height: 50vw;
+            }
+            
+            .stream-label {
+                font-size: clamp(0.5rem, 2.5vw, 0.9rem);
+                padding: 3px 10px;
+            }
+        }
 
-            .tiktok-video {
-                height: 500px;
-            }
-
-            .youtube-video {
-                height: 200px;
-            }
+        /* Retro scanlines effect */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 0, 0, 0.03) 2px,
+                rgba(0, 0, 0, 0.03) 4px
+            );
+            pointer-events: none;
+            z-index: 1000;
         }
     </style>
 </head>
-
 <body>
     <div class="container">
-        <!-- TikTok Style Short Video -->
-        <div class="tiktok-video">
-            <video controls autoplay muted loop>
-                <source src="https://sample-videos.com/zip/10/mp4/SampleVideo_1280x720_1mb.mp4" type="video/mp4">
-                Your browser does not support the video tag.
-            </video>
-            <div class="video-overlay">
-                <div class="video-title">Sample Short Video</div>
-                <div class="video-description">#shorts #viral #trending</div>
+        <h1>TECH ROAST TROLL</h1>
+        
+        <div class="streams-container">
+            <div class="stream-wrapper">
+                <div class="stream-label">JACK</div>
+                <iframe 
+                    src="https://player.twitch.tv/?channel=welch_jw&parent=We1chJ.github.io" 
+                    allowfullscreen>
+                </iframe>
+            </div>
+            
+            <div class="divider"></div>
+            
+            <div class="stream-wrapper">
+                <div class="stream-label">DAVID</div>
+                <iframe 
+                    src="https://player.twitch.tv/?channel=welch_jw&parent=We1chJ.github.io" 
+                    allowfullscreen>
+                </iframe>
             </div>
         </div>
-
-        <!-- Twitch embed -->
-        <iframe src="https://player.twitch.tv/?channel=welch_jw&parent=We1chJ.github.io" height="480" width="720"
-            allowfullscreen>
-        </iframe>
-
     </div>
 </body>
-
 </html>
