@@ -113,6 +113,17 @@
             min-height: 25vw;
         }
 
+        .ban-image {
+            border-radius: 10px;
+            width: 100%;
+            height: auto;
+            aspect-ratio: 16/9;
+            object-fit: cover;
+            min-width: 45vw;
+            min-height: 25vw;
+            display: block;
+        }
+
         .stream-label {
             position: absolute;
             top: -15px;
@@ -190,7 +201,7 @@
                     transparent);
             }
             
-            iframe {
+            iframe, .ban-image {
                 min-width: 80vw;
                 min-height: 45vw;
             }
@@ -221,7 +232,7 @@
                 border-width: 3px;
             }
             
-            iframe {
+            iframe, .ban-image {
                 min-width: 85vw;
                 min-height: 48vw;
             }
@@ -258,7 +269,7 @@
                 padding-bottom: 45px;
             }
             
-            iframe {
+            iframe, .ban-image {
                 min-width: 90vw;
                 min-height: 50vw;
             }
@@ -316,10 +327,9 @@
         <div class="streams-container">
             <div class="stream-wrapper">
                 <div class="stream-label">JACK</div>
-                <iframe 
-                    src="https://player.twitch.tv/?channel=welch_jw&parent=We1chJ.github.io" 
-                    allowfullscreen>
-                </iframe>
+                <a href="ban.jpg" target="_blank">
+                    <img src="ban.jpg" alt="Jack got banned" class="ban-image">
+                </a>
                 <a href="https://www.linkedin.com/in/erqi-jack-wei/" target="_blank" class="linkedin-button">
                     LinkedIn
                 </a>
