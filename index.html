@@ -57,7 +57,8 @@
                 3px 3px 0px #8B4513,
                 6px 6px 0px rgba(0,0,0,0.3),
                 0 0 20px rgba(255, 204, 0, 0.5);
-            margin-bottom: 10px;
+            margin-top: 30px;
+            margin-bottom: 20px;
             letter-spacing: 2px;
             animation: glow 2s ease-in-out infinite alternate;
             font-family: 'DonkeyKong', 'Courier New', monospace !important;
@@ -87,6 +88,7 @@
                 inset 0 0 20px rgba(139, 69, 19, 0.2);
             background: #1a0f08;
             padding: 10px;
+            padding-bottom: 50px;
             transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
 
@@ -126,6 +128,31 @@
             font-family: 'DonkeyKong', 'Courier New', monospace !important;
         }
 
+        .linkedin-button {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #0077b5;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 25px;
+            text-decoration: none;
+            font-size: clamp(0.7rem, 1.2vw, 1rem);
+            border: 2px solid #ffcc00;
+            transition: all 0.3s ease;
+            font-family: 'DonkeyKong', 'Courier New', monospace !important;
+            box-shadow: 0 0 10px rgba(0, 119, 181, 0.5);
+            z-index: 10;
+        }
+
+        .linkedin-button:hover {
+            background: #005885;
+            transform: translateX(-50%) scale(1.05);
+            box-shadow: 0 0 15px rgba(0, 119, 181, 0.8);
+            color: #ffcc00;
+        }
+
         .divider {
             width: 4px;
             height: 60vh;
@@ -149,7 +176,7 @@
         @media (max-width: 1200px) {
             .streams-container {
                 flex-direction: column;
-                gap: 10px;
+                gap: 30px;
             }
             
             .divider {
@@ -167,20 +194,30 @@
                 min-width: 80vw;
                 min-height: 45vw;
             }
+
+            .stream-wrapper {
+                padding-bottom: 55px;
+            }
         }
 
         @media (max-width: 768px) {
             .container {
                 padding: 8px;
-                gap: 10px;
+                gap: 15px;
             }
             
             h1 {
-                margin-bottom: 10px;
+                margin-top: 20px;
+                margin-bottom: 15px;
+            }
+            
+            .streams-container {
+                gap: 25px;
             }
             
             .stream-wrapper {
-                padding: 6px;
+                padding: 8px;
+                padding-bottom: 50px;
                 border-width: 3px;
             }
             
@@ -193,11 +230,32 @@
                 font-size: clamp(0.6rem, 2vw, 1rem);
                 padding: 4px 12px;
             }
+
+            .linkedin-button {
+                font-size: clamp(0.6rem, 1.5vw, 0.9rem);
+                padding: 6px 12px;
+                bottom: 8px;
+            }
         }
 
         @media (max-width: 480px) {
             .container {
                 padding: 5px;
+                gap: 10px;
+            }
+            
+            h1 {
+                margin-top: 15px;
+                margin-bottom: 10px;
+            }
+            
+            .streams-container {
+                gap: 20px;
+            }
+            
+            .stream-wrapper {
+                padding: 6px;
+                padding-bottom: 45px;
             }
             
             iframe {
@@ -208,6 +266,26 @@
             .stream-label {
                 font-size: clamp(0.5rem, 2.5vw, 0.9rem);
                 padding: 3px 10px;
+            }
+
+            .linkedin-button {
+                font-size: clamp(0.5rem, 2vw, 0.8rem);
+                padding: 5px 10px;
+                bottom: 6px;
+            }
+        }
+
+        /* Ultra small screens */
+        @media (max-width: 320px) {
+            .stream-wrapper {
+                padding: 4px;
+                padding-bottom: 40px;
+            }
+
+            .linkedin-button {
+                font-size: 0.6rem;
+                padding: 4px 8px;
+                bottom: 4px;
             }
         }
 
@@ -242,6 +320,9 @@
                     src="https://player.twitch.tv/?channel=welch_jw&parent=We1chJ.github.io" 
                     allowfullscreen>
                 </iframe>
+                <a href="https://www.linkedin.com/in/erqi-jack-wei/" target="_blank" class="linkedin-button">
+                    LinkedIn
+                </a>
             </div>
             
             <div class="divider"></div>
@@ -249,9 +330,12 @@
             <div class="stream-wrapper">
                 <div class="stream-label">DAVID</div>
                 <iframe 
-                    src="https://player.twitch.tv/?channel=welch_jw&parent=We1chJ.github.io" 
+                    src="https://player.twitch.tv/?channel=masterscrub90&parent=We1chJ.github.io" 
                     allowfullscreen>
                 </iframe>
+                <a href="https://www.linkedin.com/in/davidmbarsoum/" target="_blank" class="linkedin-button">
+                    LinkedIn
+                </a>
             </div>
         </div>
     </div>
